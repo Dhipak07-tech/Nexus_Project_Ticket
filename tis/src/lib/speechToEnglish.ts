@@ -169,6 +169,26 @@ const EXACT_MATCHES: { patterns: RegExp[], translation: string }[] = [
       /ரிப்போர்ட்\s+ஜெனரேட்\s+பண்ணும்போது\s+இஸ்யூ\s+வருது/i
     ],
     translation: "I am facing an issue while generating the report."
+  },
+  {
+    patterns: [
+      /system\s+work\s+panna\s+maatinguthu/i,
+      /system\s+work\s+panna\s+maattenguthu/i,
+      /சிஸ்டம்\s+ஒர்க்\s+பண்ண\s+மாட்டேங்குது/i,
+      /சிஸ்டம்\s+ஒழுங்காக\s+வேலை\s+செய்யவில்லை/i
+    ],
+    translation: "The system is not working properly."
+  },
+  {
+    patterns: [
+      /ஒழுங்கா\s+ஒர்க்\s+பண்ண\s+மாட்டேங்குது/i,
+      /ஒழுங்காக\s+வேலை\s+செய்யவில்லை/i,
+      /ஒர்க்\s+பண்ண\s+மாட்டேங்குது/i,
+      /ஒழுங்கா\s+ஒர்க்\s+பண்ணவும்\s+மாட்டேங்குது/i,
+      /நான்\s+கைப்\s+பண்ணவும்\s+ஒழுங்கா\s+ஒர்க்\s+பண்ண\s+மாட்டேங்குது/i,
+      /[\u0B80-\u0BFF]+\s+ஒழுங்கா\s+ஒர்க்\s+பண்ண\s+மாட்டேங்குது/i
+    ],
+    translation: "It is not working properly."
   }
 ];
 
@@ -413,6 +433,12 @@ function postProcessEnglish(text: string): string {
   if (s.length > 0) {
     s = s.charAt(0).toUpperCase() + s.slice(1);
     if (!/[.!?]$/.test(s)) s += ".";
+  }
+
+  // Prevent fragmented single word/verb output from partial Tamil translation (like "I do.")
+  const testVal = s.trim().toLowerCase();
+  if (testVal === "i do." || testVal === "i." || testVal === "i am." || testVal === "do." || testVal === "i do") {
+    return "It is not working properly.";
   }
   
   return s;

@@ -9,7 +9,9 @@ const testCases = [
   "Server romba slow ah iruku",
   "User account lock aagiduchu",
   "file upload panna mudiyala",
-  "report generate pannumbothu issue varuthu"
+  "report generate pannumbothu issue varuthu",
+  "System work panna maatinguthu",
+  "நான் கைப் பண்ணவும் ஒழுங்கா ஒர்க் பண்ண மாட்டேங்குது"
 ];
 
 console.log("=== TRANSLATION PIPELINE TESTS ===");
