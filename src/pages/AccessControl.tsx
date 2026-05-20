@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, updateDoc, doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, onSnapshot, updateDoc, doc, serverTimestamp, setDoc, query, orderBy, where } from "firebase/firestore";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth, db } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
@@ -10,6 +10,7 @@ import {
   Users, ChevronRight, ChevronUp, UserPlus, X, Eye, EyeOff
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CREATE_NEW_INCIDENT_FEATURE_OPTIONS, DEFAULT_COMPANY_FEATURE_PERMISSION } from "../lib/createIncidentFeatures";
 
 /* ── All system modules/features ─────────────────────────── */
 const MODULES = [
@@ -63,11 +64,18 @@ export function AccessControl() {
   const { profile } = useAuth();
   const myRole = profile?.role || 'user';
   const [users, setUsers]           = useState<any[]>([]);
+  const [companies, setCompanies]   = useState<any[]>([]);
+  const [companyPermissions, setCompanyPermissions] = useState<Record<string, any>>({});
   const [search, setSearch]         = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [updating, setUpdating]     = useState<string | null>(null);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
-  const [activeTab, setActiveTab]   = useState<"access" | "modules">("access");
+  const [activeTab, setActiveTab]   = useState<"access" | "modules" | "company_features">("access");
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [featureSyncing, setFeatureSyncing] = useState(true);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsError, setPermissionsError] = useState("");
+  const [permissionSearch, setPermissionSearch] = useState("");
 
   // Create user modal
   const [showCreate, setShowCreate] = useState(false);
@@ -83,6 +91,89 @@ export function AccessControl() {
       setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(query(collection(db, "companies"), orderBy("name")), (snap) => {
+      const nextCompanies = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setCompanies(nextCompanies);
+      setSelectedCompanyId((current) => current || nextCompanies[0]?.id || "");
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const syncFeatures = async () => {
+      setFeatureSyncing(true);
+      try {
+        await Promise.all(
+          CREATE_NEW_INCIDENT_FEATURE_OPTIONS.map((feature) =>
+            setDoc(
+              doc(db, "feature_master", feature.id),
+              {
+                ...feature,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            )
+          )
+        );
+      } catch (error) {
+        console.error("Failed to sync feature master", error);
+      } finally {
+        if (!cancelled) {
+          setFeatureSyncing(false);
+        }
+      }
+    };
+
+    syncFeatures();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCompanyId) {
+      setCompanyPermissions({});
+      setPermissionsLoading(false);
+      setPermissionsError("");
+      return;
+    }
+
+    setPermissionsLoading(true);
+    setPermissionsError("");
+
+    const permissionsQuery = query(
+      collection(db, "company_feature_permissions"),
+      where("companyId", "==", selectedCompanyId)
+    );
+
+    const unsubscribe = onSnapshot(
+      permissionsQuery,
+      (snap) => {
+        const nextPermissions = snap.docs.reduce((acc, permissionDoc) => {
+          const data = permissionDoc.data() as any;
+          acc[data.featureId] = {
+            id: permissionDoc.id,
+            ...DEFAULT_COMPANY_FEATURE_PERMISSION,
+            ...data,
+          };
+          return acc;
+        }, {} as Record<string, any>);
+
+        setCompanyPermissions(nextPermissions);
+        setPermissionsLoading(false);
+      },
+      (error) => {
+        console.error("Failed to load company feature permissions", error);
+        setPermissionsError("Unable to load company feature permissions right now.");
+        setPermissionsLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  }, [selectedCompanyId]);
 
   if (ROLE_HIERARCHY[myRole] < ROLE_HIERARCHY["admin"]) {
     return (
@@ -197,6 +288,42 @@ export function AccessControl() {
 
   const activeCount   = users.filter(u => u.disabled !== true).length;
   const disabledCount = users.filter(u => u.disabled === true).length;
+  const canManageCompanyFeatures = ROLE_HIERARCHY[myRole] >= ROLE_HIERARCHY["super_admin"];
+  const visibleFeaturePermissions = CREATE_NEW_INCIDENT_FEATURE_OPTIONS.filter((feature) =>
+    !permissionSearch || feature.name.toLowerCase().includes(permissionSearch.toLowerCase())
+  );
+
+  const getPermissionForFeature = (featureId: string) => ({
+    ...DEFAULT_COMPANY_FEATURE_PERMISSION,
+    ...(companyPermissions[featureId] || {}),
+  });
+
+  const updateCompanyFeaturePermission = async (
+    featureId: string,
+    updates: Partial<typeof DEFAULT_COMPANY_FEATURE_PERMISSION>
+  ) => {
+    if (!selectedCompanyId || !canManageCompanyFeatures) {
+      return;
+    }
+
+    setUpdating(`company_${selectedCompanyId}_${featureId}`);
+    try {
+      await setDoc(
+        doc(db, "company_feature_permissions", `${selectedCompanyId}_${featureId}`),
+        {
+          companyId: selectedCompanyId,
+          featureId,
+          ...getPermissionForFeature(featureId),
+          ...updates,
+          updatedBy: profile?.uid || "",
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -246,6 +373,7 @@ export function AccessControl() {
         {[
           { key: "access",  label: "Account Access",   desc: "Grant or remove login access" },
           { key: "modules", label: "Feature Access",   desc: "Control per-module permissions" },
+          { key: "company_features", label: "Company Dropdown Access", desc: "Control Create New Incident features per company" },
         ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
             className={cn("flex flex-col px-6 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors",
@@ -486,6 +614,177 @@ export function AccessControl() {
       )}
 
       {/* ── Add Login Modal ── */}
+      {activeTab === "company_features" && (
+        <div className="space-y-4">
+          <div className="bg-white border border-border rounded-xl shadow-sm">
+            <div className="p-4 border-b border-border flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-sn-dark">Create New Incident Feature Access</h2>
+                <p className="text-xs text-muted-foreground">
+                  Control Create New Incident fields, sections, and buttons by company without changing the existing workflow.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Company Name</label>
+                  <select
+                    value={selectedCompanyId}
+                    onChange={e => setSelectedCompanyId(e.target.value)}
+                    className="min-w-[220px] p-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-sn-green"
+                  >
+                    {companies.length === 0 ? (
+                      <option value="">No companies found</option>
+                    ) : (
+                      companies.map(company => (
+                        <option key={company.id} value={company.id}>{company.name}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Feature Search</label>
+                  <input
+                    type="text"
+                    value={permissionSearch}
+                    onChange={e => setPermissionSearch(e.target.value)}
+                    placeholder="Search fields, buttons, sections..."
+                    className="min-w-[220px] p-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-sn-green"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {!canManageCompanyFeatures && (
+              <div className="m-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                Super Admin access or above is required to manage company dropdown access.
+              </div>
+            )}
+
+            {featureSyncing && (
+              <div className="m-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                Syncing the Create New Incident feature catalog...
+              </div>
+            )}
+
+            {permissionsError && (
+              <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {permissionsError}
+              </div>
+            )}
+
+            {!selectedCompanyId && !permissionsLoading && (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                Select a company to manage feature permissions.
+              </div>
+            )}
+
+            {selectedCompanyId && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-muted/20 border-y border-border text-[10px] font-bold uppercase text-muted-foreground tracking-wide">
+                      <th className="p-4">Company Name</th>
+                      <th className="p-4">Feature Name</th>
+                      <th className="p-4 text-center">View</th>
+                      <th className="p-4 text-center">Use</th>
+                      <th className="p-4 text-center">Edit</th>
+                      <th className="p-4 text-center">Mandatory</th>
+                      <th className="p-4 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {permissionsLoading ? (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-sm text-muted-foreground">
+                          Loading company feature permissions...
+                        </td>
+                      </tr>
+                    ) : visibleFeaturePermissions.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-sm text-muted-foreground">
+                          No Create New Incident features match this search.
+                        </td>
+                      </tr>
+                    ) : (
+                      visibleFeaturePermissions.map(feature => {
+                        const permission = getPermissionForFeature(feature.id);
+                        const companyName = companies.find(company => company.id === selectedCompanyId)?.name || "Selected Company";
+                        const rowUpdating = updating === `company_${selectedCompanyId}_${feature.id}`;
+
+                        return (
+                          <tr key={feature.id} className="hover:bg-muted/5 transition-colors">
+                            <td className="p-4 text-sm font-medium text-sn-dark">{companyName}</td>
+                            <td className="p-4">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-sn-dark">{feature.name}</span>
+                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{feature.type}</span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-center">
+                                <Toggle
+                                  enabled={permission.canView}
+                                  disabled={!canManageCompanyFeatures || rowUpdating}
+                                  onChange={() => updateCompanyFeaturePermission(feature.id, { canView: !permission.canView })}
+                                />
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-center">
+                                <Toggle
+                                  enabled={permission.canUse}
+                                  disabled={!canManageCompanyFeatures || rowUpdating}
+                                  onChange={() => updateCompanyFeaturePermission(feature.id, { canUse: !permission.canUse })}
+                                />
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-center">
+                                <Toggle
+                                  enabled={permission.canEdit}
+                                  disabled={!canManageCompanyFeatures || rowUpdating}
+                                  onChange={() => updateCompanyFeaturePermission(feature.id, { canEdit: !permission.canEdit })}
+                                />
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-center">
+                                <Toggle
+                                  enabled={permission.isMandatory}
+                                  disabled={!canManageCompanyFeatures || rowUpdating}
+                                  onChange={() => updateCompanyFeaturePermission(feature.id, { isMandatory: !permission.isMandatory })}
+                                />
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-3">
+                                <Toggle
+                                  enabled={permission.status !== "disabled"}
+                                  disabled={!canManageCompanyFeatures || rowUpdating}
+                                  onChange={() => updateCompanyFeaturePermission(feature.id, {
+                                    status: permission.status === "disabled" ? "enabled" : "disabled"
+                                  })}
+                                />
+                                <span className={cn(
+                                  "text-[10px] font-bold uppercase tracking-wide",
+                                  permission.status === "disabled" ? "text-red-600" : "text-green-700"
+                                )}>
+                                  {rowUpdating ? "Saving..." : permission.status === "disabled" ? "Disabled" : "Enabled"}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={e => e.target === e.currentTarget && setShowCreate(false)}>

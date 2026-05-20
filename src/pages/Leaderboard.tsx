@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Trophy, Medal, Star, Target, TrendingUp, Award, RefreshCw, ShieldCheck, Clock, AlertTriangle, Zap } from "lucide-react";
+import { Trophy, Medal, Star, Target, RefreshCw, ShieldCheck, Clock, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
 interface SLAStat {
@@ -39,8 +39,30 @@ export function Leaderboard() {
   const parseDate = (value: any): Date | null => {
     if (!value) return null;
     if (typeof value.toDate === "function") return value.toDate();
-    if (typeof value === "string") return new Date(value);
+    if (value instanceof Date) return value;
+    if (typeof value === "number") {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value === "object" && value.seconds !== undefined) {
+      const date = new Date(value.seconds * 1000 + (value.nanoseconds || 0) / 1_000_000);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value === "string") {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
     return null;
+  };
+
+  const getDisplayName = (value: any, fallback = "Unassigned") => {
+    const text = String(value || "").trim();
+    return text || fallback;
+  };
+
+  const getInitial = (value: string) => {
+    const text = String(value || "").trim();
+    return text ? text.charAt(0).toUpperCase() : "?";
   };
 
   const fetchLeaderboard = async () => {
@@ -72,8 +94,8 @@ export function Leaderboard() {
         const resolvedDate = parseDate(data.resolvedAt);
         if (!resolvedDate || resolvedDate < today) return;
 
-        const userId = data.assignedTo || "unassigned";
-        const userName = data.assignedToName || data.assignedTo || "Unassigned";
+        const userId = String(data.assignedTo || "unassigned");
+        const userName = getDisplayName(data.assignedToName || data.assignedTo, "Unassigned");
 
         if (!userStats[userId]) {
           userStats[userId] = {
@@ -98,6 +120,9 @@ export function Leaderboard() {
         let resolutionMinutes = 0;
         if (createdDate && resolvedAt) {
           resolutionMinutes = (resolvedAt.getTime() - createdDate.getTime()) / (1000 * 60);
+        }
+        if (!Number.isFinite(resolutionMinutes) || resolutionMinutes < 0) {
+          resolutionMinutes = 0;
         }
 
         // Determine SLA target from policy or ticket deadline
@@ -189,8 +214,6 @@ export function Leaderboard() {
   // Podium order: 2nd (left), 1st (center), 3rd (right)
   const podiumOrder = [leaderboard[1], leaderboard[0], leaderboard[2]];
   const podiumIndex = [1, 0, 2]; // maps podiumOrder back to rank index
-  const others = leaderboard.slice(3);
-
   const getPodiumStyles = (rankIndex: number) => {
     switch (rankIndex) {
       case 0: return { color: "text-yellow-400", border: "border-yellow-400/50", bg: "bg-yellow-400/10", shadow: "shadow-yellow-400/20", glow: "shadow-[0_0_30px_rgba(250,204,21,0.2)]" };
@@ -204,7 +227,7 @@ export function Leaderboard() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] gap-4">
         <div className="animate-spin rounded-full h-14 w-14 border-4 border-primary/20 border-t-primary" />
-        <p className="text-muted-foreground text-sm font-medium animate-pulse">Loading today's rankings…</p>
+        <p className="text-muted-foreground text-sm font-medium animate-pulse">Loading today's rankings...</p>
       </div>
     );
   }
@@ -245,7 +268,7 @@ export function Leaderboard() {
         </div>
         <div className="flex items-center gap-2 px-4 py-1.5 bg-secondary rounded-full text-sm font-medium">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          Live · {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"}
+          Live · {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading..."}
         </div>
       </header>
 
@@ -313,7 +336,7 @@ export function Leaderboard() {
                   </div>
                   <div className="flex-grow flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center font-bold text-sm text-primary">
-                      {user.name.charAt(0).toUpperCase()}
+                      {getInitial(user.name)}
                     </div>
                     <div>
                       <div className="font-semibold">{user.name}</div>
@@ -416,7 +439,7 @@ function PodiumCard({
         )}
 
         <div className={`w-20 h-20 rounded-full ${styles.bg} border-2 ${styles.border} flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-110 z-10`}>
-          <span className={`text-3xl font-black ${styles.color}`}>{user.name.charAt(0).toUpperCase()}</span>
+          <span className={`text-3xl font-black ${styles.color}`}>{getInitial(user.name)}</span>
         </div>
 
         <div className="text-center pb-6 space-y-2 z-10 px-2">

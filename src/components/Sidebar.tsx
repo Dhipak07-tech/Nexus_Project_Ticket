@@ -60,10 +60,11 @@ interface MenuItem {
 }
 
 export function Sidebar() {
-  const { user, profile, signOut } = useAuth();
+  const { profile, signOut } = useAuth();
   const { openTicketsCount, assignedToMeCount } = useTickets();
   const { branding } = useBranding();
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
+  const location = useLocation();
 
   const isDarkMode = resolvedTheme === "dark";
   const [expandedSections, setExpandedSections] = useState<string[]>(() => {
@@ -80,14 +81,24 @@ export function Sidebar() {
   const menuStructure: MenuItem[] = [
     {
       label: "Favorites",
-      items: [
-        { icon: LayoutDashboard, label: profile?.role === 'user' ? "Service Portal" : "Incident Dashboard", path: "/" },
-        { icon: Trophy, label: "Leaderboard", path: "/leaderboard" },
-        { icon: CalendarDays, label: "Calendar", path: "/calendar" },
-        { icon: Ticket, label: "My Tickets", path: "/timesheet" },
-        { icon: BarChart2, label: "Timesheet Reports", path: "/timesheet/reports" },
-        { icon: Monitor, label: "AI Activity Tracker", path: "/activity-tracker" },
-      ]
+      items: profile?.role === "user"
+        ? [
+            { icon: LayoutDashboard, label: "Service Portal", path: "/" },
+            { icon: LayoutDashboard, label: "Personal Dashboard", path: "/personal-dashboard" },
+            { icon: Trophy, label: "Leaderboard", path: "/leaderboard" },
+            { icon: CalendarDays, label: "Calendar", path: "/calendar" },
+            { icon: Ticket, label: "My Tickets", path: "/timesheet" },
+            { icon: BarChart2, label: "Timesheet Reports", path: "/timesheet/reports" },
+            { icon: Monitor, label: "AI Activity Tracker", path: "/activity-tracker" },
+          ]
+        : [
+            { icon: LayoutDashboard, label: "Incident Dashboard", path: "/" },
+            { icon: Trophy, label: "Leaderboard", path: "/leaderboard" },
+            { icon: CalendarDays, label: "Calendar", path: "/calendar" },
+            { icon: Ticket, label: "My Tickets", path: "/timesheet" },
+            { icon: BarChart2, label: "Timesheet Reports", path: "/timesheet/reports" },
+            { icon: Monitor, label: "AI Activity Tracker", path: "/activity-tracker" },
+          ]
     },
     {
       label: "Companies",

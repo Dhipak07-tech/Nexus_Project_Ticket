@@ -101,6 +101,13 @@ export function Sidebar() {
       ]
     },
     {
+      label: "Email Integration",
+      ultraSuperAdminOnly: true,
+      items: [
+        { icon: Mail, label: "Email Integration", path: "/email-integrations" },
+      ]
+    },
+    {
       label: "Service Desk",
       items: [
         { icon: ShoppingCart, label: "Service Catalog", path: "/catalog" },
@@ -141,9 +148,7 @@ export function Sidebar() {
         { icon: CheckCircle2, label: "Approved Timesheets", path: "/timesheet/reports?status=Approved" },
         { icon: Palette, label: "Branding", path: "/branding", superAdminOnly: true },
         { icon: Tag, label: "Custom Form Dropdowns", path: "/custom-dropdowns" },
-        { icon: Mail, label: "Email Integrations", path: "/email-integrations", ultraSuperAdminOnly: true },
       ]
-
     }
   ];
 

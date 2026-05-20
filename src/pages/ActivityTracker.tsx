@@ -245,12 +245,23 @@ export function ActivityTracker() {
   const {
     status, entries, elapsed, summary, error,
     startWatcher, stopWatcher, setEntries, setSummary, setError,
-    intervalSec, setIntervalSec, captureScreenshots, setCaptureScreenshots
+    intervalSec, setIntervalSec, captureScreenshots, setCaptureScreenshots,
+    screenshotInterval, setScreenshotInterval
   } = useActivityTracker();
 
   const [showSettings, setShowSettings] = useState(false);
   const [previewModal, setPreviewModal] = useState<string | null>(null);
   const feedEndRef = useRef<HTMLDivElement>(null);
+
+  const PRESET_INTERVALS = [5, 10, 15, 30, 60, 120, 300];
+  const [dropdownValue, setDropdownValue] = useState<string>(() => {
+    return PRESET_INTERVALS.includes(screenshotInterval) ? screenshotInterval.toString() : 'custom';
+  });
+  const [customValue, setCustomValue] = useState<string>(() => {
+    return !PRESET_INTERVALS.includes(screenshotInterval) ? screenshotInterval.toString() : '';
+  });
+  const [customError, setCustomError] = useState<string>('');
+
 
   const isActive = status === 'active';
 
@@ -347,6 +358,63 @@ export function ActivityTracker() {
               <label htmlFor="capScreenshots" className="text-sm font-medium cursor-pointer">
                 Silent Monitoring (OS-level capture, no permission dialogs)
               </label>
+            </div>
+
+            <div className="pt-2 border-t border-border">
+              <h3 className="text-sm font-bold mb-3 mt-2">Screenshot Capture Frequency</h3>
+              <div className="flex flex-col gap-3 max-w-xs">
+                <select 
+                  value={dropdownValue}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setDropdownValue(val);
+                    if (val !== 'custom') {
+                      setScreenshotInterval(parseInt(val, 10));
+                      setCustomError('');
+                    }
+                  }}
+                  disabled={isActive}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  <option value="5">Every 5 seconds</option>
+                  <option value="10">Every 10 seconds</option>
+                  <option value="15">Every 15 seconds</option>
+                  <option value="30">Every 30 seconds</option>
+                  <option value="60">Every 1 minute</option>
+                  <option value="120">Every 2 minutes</option>
+                  <option value="300">Every 5 minutes</option>
+                  <option value="custom">Custom</option>
+                </select>
+
+                {dropdownValue === 'custom' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                      Custom Interval (Seconds)
+                    </label>
+                    <input 
+                      type="number"
+                      value={customValue}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomValue(val);
+                        const num = parseInt(val, 10);
+                        if (!val || isNaN(num) || num < 5 || num > 3600) {
+                          setCustomError("Please enter a value between 5 and 3600 seconds");
+                        } else {
+                          setCustomError('');
+                          setScreenshotInterval(num);
+                        }
+                      }}
+                      placeholder="Enter time in seconds"
+                      disabled={isActive}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${customError ? 'border-red-500' : 'border-border'}`}
+                    />
+                    {customError && (
+                      <p className="text-xs text-red-500 mt-1">{customError}</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -1,13 +1,12 @@
 import React from "react";
-import { 
-  Search, 
-  Ticket, 
-  ShoppingCart, 
-  BookOpen, 
-  MessageSquare, 
-  Clock, 
+import {
+  Search,
+  Ticket,
+  ShoppingCart,
+  BookOpen,
+  MessageSquare,
   ChevronRight,
-  PlusCircle
+  PlusCircle,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -26,12 +25,12 @@ export function ServicePortal() {
 
   return (
     <div className="space-y-12 max-w-6xl mx-auto pb-12">
-      {/* Hero Section */}
       <div className="text-center space-y-6 py-16">
-        <h1 className="text-5xl font-light text-sn-dark">How can we help you, {profile?.name?.split(' ')[0]}?</h1>
+        <p className="text-xs font-black uppercase tracking-[0.3em] text-sn-green">Service Portal</p>
+        <h1 className="text-5xl font-light text-sn-dark">How can we help you, {profile?.name?.split(" ")[0]}?</h1>
         <div className="max-w-2xl mx-auto relative group">
           <Search className="w-6 h-6 absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-sn-green transition-colors" />
-          <input 
+          <input
             type="text"
             placeholder="Search for services, articles, or tickets..."
             className="w-full bg-white border border-border rounded-2xl py-5 pl-14 pr-6 text-xl outline-none shadow-xl focus:ring-2 focus:ring-sn-green transition-all"
@@ -39,16 +38,15 @@ export function ServicePortal() {
         </div>
       </div>
 
-      {/* Main Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {PORTAL_ACTIONS.map((action) => (
-          <Link 
-            key={action.title} 
+          <Link
+            key={action.title}
             to={action.path}
             className="sn-card p-6 hover:border-sn-green transition-all group flex flex-col items-center text-center space-y-4"
           >
-            <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110", action.bg)}>
-              <action.icon className={cn("w-8 h-8", action.color)} />
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${action.bg}`}>
+              <action.icon className={`w-8 h-8 ${action.color}`} />
             </div>
             <div className="space-y-1">
               <h3 className="font-bold text-sn-dark">{action.title}</h3>
@@ -59,11 +57,10 @@ export function ServicePortal() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* My Active Items */}
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-sn-dark">My Active Items</h2>
-            <Button variant="ghost" size="sm" className="text-sn-green font-bold">View All</Button>
+            <Button variant="ghost" size="sm" className="text-sn-green font-bold" onClick={() => navigate("/timesheet")}>View All</Button>
           </div>
           <div className="sn-card p-0 overflow-hidden divide-y divide-border">
             {[
@@ -77,7 +74,7 @@ export function ServicePortal() {
                   </div>
                   <div>
                     <div className="text-sm font-bold text-sn-dark group-hover:text-sn-green transition-colors">{item.title}</div>
-                    <div className="text-[10px] font-mono text-muted-foreground">{item.id} • {item.date}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground">{item.id} · {item.date}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -91,7 +88,6 @@ export function ServicePortal() {
           </div>
         </div>
 
-        {/* Popular Articles */}
         <div className="space-y-6">
           <h2 className="text-xl font-bold text-sn-dark">Popular Articles</h2>
           <div className="sn-card p-4 space-y-4">
@@ -99,7 +95,7 @@ export function ServicePortal() {
               "Resetting your corporate password",
               "Connecting to office Wi-Fi",
               "Remote work best practices",
-              "Requesting software licenses"
+              "Requesting software licenses",
             ].map((article) => (
               <Link key={article} to="/kb" className="block text-sm text-sn-dark hover:text-sn-green transition-colors flex items-center justify-between group">
                 <span className="truncate pr-4">{article}</span>
@@ -117,8 +113,4 @@ export function ServicePortal() {
       </div>
     </div>
   );
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(" ");
 }

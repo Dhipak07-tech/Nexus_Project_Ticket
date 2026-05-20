@@ -30,6 +30,7 @@ const ProblemManagement = lazy(() => import("./pages/ProblemManagement").then(m 
 const ChangeManagement = lazy(() => import("./pages/ChangeManagement").then(m => ({ default: m.ChangeManagement })));
 const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase").then(m => ({ default: m.KnowledgeBase })));
 const ServicePortal = lazy(() => import("./pages/ServicePortal").then(m => ({ default: m.ServicePortal })));
+const PersonalDashboard = lazy(() => import("./pages/PersonalDashboard").then(m => ({ default: m.PersonalDashboard })));
 const Login = lazy(() => import("./pages/Login").then(m => ({ default: m.Login })));
 const Register = lazy(() => import("./pages/Register").then(m => ({ default: m.Register })));
 const Timesheet = lazy(() => import("./pages/Timesheet").then(m => ({ default: m.Timesheet })));
@@ -122,6 +123,14 @@ function AppBody() {
             element={
               <ProtectedRoute>
                 <HomeRedirect />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/personal-dashboard"
+            element={
+              <ProtectedRoute>
+                <PersonalDashboard />
               </ProtectedRoute>
             }
           />

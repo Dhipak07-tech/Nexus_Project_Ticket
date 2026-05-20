@@ -31,6 +31,8 @@ interface ActivityTrackerContextType {
   setIntervalSec: (s: number) => void;
   captureScreenshots: boolean;
   setCaptureScreenshots: (c: boolean) => void;
+  screenshotInterval: number;
+  setScreenshotInterval: (s: number) => void;
 }
 
 const ActivityTrackerContext = createContext<ActivityTrackerContextType | undefined>(undefined);
@@ -59,6 +61,15 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
   const [sessionDbId, setSessionDbId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
+  const [screenshotInterval, setScreenshotInterval] = useState(() => {
+    const saved = localStorage.getItem('screenshotCaptureInterval');
+    return saved ? parseInt(saved, 10) : 30;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('screenshotCaptureInterval', screenshotInterval.toString());
+  }, [screenshotInterval]);
+
   const watcherRef = useRef<ActivityWatcher | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
@@ -68,12 +79,14 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
   const sessionIdRef = useRef<string | null>(null);
   const sessionDbIdRef = useRef<string | null>(null);
   const intervalSecRef = useRef(15);
+  const screenshotIntervalRef = useRef(screenshotInterval);
   const userRef = useRef(user);
   const profileRef = useRef(profile);
 
   useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { profileRef.current = profile; }, [profile]);
   useEffect(() => { intervalSecRef.current = intervalSec; }, [intervalSec]);
+  useEffect(() => { screenshotIntervalRef.current = screenshotInterval; }, [screenshotInterval]);
 
   const isActive = status === 'active';
 
@@ -287,14 +300,14 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
     } catch { /* silent */ }
 
     const watcher = new ActivityWatcher({
-      intervalMs: intervalSec * 1000,
+      intervalMs: screenshotInterval * 1000,
       captureScreenshots,
       onSnapshot: processSnapshot,
       onStatusChange: setStatus,
     });
     watcherRef.current = watcher;
     await watcher.start();
-  }, [isActive, intervalSec, captureScreenshots, processSnapshot]);
+  }, [isActive, screenshotInterval, captureScreenshots, processSnapshot]);
 
   const stopWatcher = useCallback(async () => {
     if (!isActive) return;
@@ -327,7 +340,7 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
   }, [isActive, entries]);
 
   useEffect(() => () => { watcherRef.current?.stop(); }, []);
-  useEffect(() => { watcherRef.current?.updateInterval(intervalSec * 1000); }, [intervalSec]);
+  useEffect(() => { watcherRef.current?.updateInterval(screenshotInterval * 1000); }, [screenshotInterval]);
 
   // Note: startWatcher already guards against double-starts (returns early if isActive).
 
@@ -335,7 +348,8 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
     <ActivityTrackerContext.Provider value={{
       status, entries, elapsed, summary, error,
       startWatcher, stopWatcher, setEntries, setSummary, setError,
-      intervalSec, setIntervalSec, captureScreenshots, setCaptureScreenshots
+      intervalSec, setIntervalSec, captureScreenshots, setCaptureScreenshots,
+      screenshotInterval, setScreenshotInterval
     }}>
       {children}
     </ActivityTrackerContext.Provider>

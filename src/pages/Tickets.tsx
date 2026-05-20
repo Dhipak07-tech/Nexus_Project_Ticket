@@ -12,6 +12,7 @@ import { createSpeechController } from "../lib/speechToEnglish";
 
 import { Link, useSearchParams } from "react-router-dom";
 import { IT_SERVICE_CATALOG } from "../lib/itServiceCatalogDefaults";
+import { CREATE_INCIDENT_FORM_DEFAULTS, DEFAULT_COMPANY_FEATURE_PERMISSION } from "../lib/createIncidentFeatures";
 
 function toMs(val: any): number {
   if (!val) return NaN;
@@ -103,35 +104,8 @@ export function Tickets() {
   }, []);
 
   const [newTicket, setNewTicket] = useState({
+    ...CREATE_INCIDENT_FORM_DEFAULTS,
     caller: profile?.name || user?.email || "",
-    category: "",
-    categoryId: "",
-    subcategory: "",
-    subcategoryId: "",
-    service: "",
-    serviceId: "",
-    serviceProvider: "",
-    serviceOffering: "",
-    title: "",
-    description: "",
-    channel: "Self-service",
-    impact: "2 - Medium",
-    urgency: "2 - Medium",
-    assignmentGroup: "",
-    assignedTo: "",
-    businessPhone: "",
-    location: "",
-    configurationItem: "",
-    computerName: "",
-    knowledgeArticleUsed: false,
-    originalAssignmentGroup: "",
-    acknowledged: false,
-    passwordReset: "No",
-    rackspaceTicketNo: "",
-    additionalInformation: "",
-    affectedUser: "",
-    watchList: "",
-    company: ""
   });
 
   const [assignedTo, setAssignedTo] = useState("");
@@ -166,6 +140,7 @@ export function Tickets() {
   }, []);
 
   const [companies, setCompanies] = useState<any[]>([]);
+  const [companyFeaturePermissions, setCompanyFeaturePermissions] = useState<Record<string, any>>({});
   useEffect(() => {
     const q = query(collection(db, "companies"), orderBy("name"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -173,6 +148,33 @@ export function Tickets() {
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!newTicket.company) {
+      setCompanyFeaturePermissions({});
+      return;
+    }
+
+    const permissionsQuery = query(
+      collection(db, "company_feature_permissions"),
+      where("companyId", "==", newTicket.company)
+    );
+
+    const unsubscribe = onSnapshot(permissionsQuery, (snapshot) => {
+      const nextPermissions = snapshot.docs.reduce((acc, permissionDoc) => {
+        const data = permissionDoc.data() as any;
+        acc[data.featureId] = {
+          ...DEFAULT_COMPANY_FEATURE_PERMISSION,
+          ...data,
+        };
+        return acc;
+      }, {} as Record<string, any>);
+
+      setCompanyFeaturePermissions(nextPermissions);
+    });
+
+    return unsubscribe;
+  }, [newTicket.company]);
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -278,6 +280,33 @@ export function Tickets() {
     return "4 - Low";
   };
 
+  const getFeaturePermission = (featureId: string) => ({
+    ...DEFAULT_COMPANY_FEATURE_PERMISSION,
+    ...(companyFeaturePermissions[featureId] || {}),
+  });
+
+  const isFeatureVisible = (featureId: string) => {
+    const permission = getFeaturePermission(featureId);
+    return permission.canView && permission.status !== "disabled";
+  };
+
+  const isFeatureDisabled = (featureId: string) => {
+    const permission = getFeaturePermission(featureId);
+    return permission.status === "disabled" || !permission.canUse;
+  };
+
+  const isFeatureReadOnly = (featureId: string) => {
+    const permission = getFeaturePermission(featureId);
+    return permission.status === "disabled" || !permission.canUse || !permission.canEdit;
+  };
+
+  const isFeatureMandatory = (featureId: string) => getFeaturePermission(featureId).isMandatory;
+
+  const getFieldRequired = (featureId: string, baseRequired = false) => baseRequired || isFeatureMandatory(featureId);
+
+  const getInputClassName = (featureId: string, baseClassName: string) =>
+    cn(baseClassName, isFeatureReadOnly(featureId) && "bg-muted/30 cursor-not-allowed");
+
   const handleAIAssist = async () => {
     const shortDesc = newTicket.title;
     if (!shortDesc) {
@@ -337,9 +366,25 @@ export function Tickets() {
       return;
     }
 
-    // Required fields check
-    if (!newTicket.caller || !newTicket.title || !newTicket.category || !newTicket.subcategory || !newTicket.service) {
-      alert("Please fill in all required fields (Reporting User, Short description, Category, Subcategory, and Service).");
+    const requiredFieldChecks = [
+      { key: "field.caller", label: "Reporting User", value: newTicket.caller },
+      { key: "field.affectedUser", label: "Affected User", value: newTicket.affectedUser },
+      { key: "field.title", label: "Short description", value: newTicket.title },
+      { key: "field.category", label: "Category", value: newTicket.category },
+      { key: "field.subcategory", label: "Subcategory", value: newTicket.subcategory },
+      { key: "field.service", label: "Service", value: newTicket.service },
+      { key: "field.description", label: "Description", value: newTicket.description },
+      { key: "field.company", label: "Company", value: newTicket.company },
+      { key: "field.assignmentGroup", label: "Assignment group", value: newTicket.assignmentGroup },
+      { key: "field.assignedTo", label: "Assigned to", value: newTicket.assignedTo },
+    ];
+
+    const missingRequiredField = requiredFieldChecks.find(({ key, value }) =>
+      isFeatureVisible(key) && getFieldRequired(key, ["field.caller", "field.title", "field.category", "field.subcategory", "field.service"].includes(key)) && !value
+    );
+
+    if (missingRequiredField) {
+      alert(`Please fill in the required field: ${missingRequiredField.label}.`);
       return;
     }
 
@@ -443,35 +488,8 @@ export function Tickets() {
       alert(`Ticket ${ticketNumber} has been created successfully.`);
 
       setNewTicket({
+        ...CREATE_INCIDENT_FORM_DEFAULTS,
         caller: "",
-        category: "Inquiry / Help",
-        categoryId: "",
-        subcategory: "",
-        subcategoryId: "",
-        service: "",
-        serviceId: "",
-        serviceProvider: "",
-        serviceOffering: "",
-        title: "",
-        description: "",
-        channel: "Self-service",
-        impact: "2 - Medium",
-        urgency: "2 - Medium",
-        assignmentGroup: "",
-        assignedTo: "",
-        businessPhone: "",
-        location: "",
-        configurationItem: "",
-        computerName: "",
-        knowledgeArticleUsed: false,
-        originalAssignmentGroup: "",
-        acknowledged: false,
-        passwordReset: "No",
-        rackspaceTicketNo: "",
-        additionalInformation: "",
-        affectedUser: "",
-        watchList: "",
-        company: ""
       });
       setSpeechLiveText("");
     } catch (error: any) {
@@ -648,26 +666,46 @@ export function Tickets() {
                 <span className="text-sm font-bold">New Record</span>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={closeModal}>Cancel</Button>
-                <Button size="sm" className="bg-sn-green text-sn-dark font-bold" onClick={(e: any) => handleCreateTicket(e)} disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit"}
-                </Button>
+                {isFeatureVisible("button.cancel") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={closeModal}
+                    disabled={isFeatureDisabled("button.cancel")}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                {isFeatureVisible("button.submit") && (
+                  <Button
+                    size="sm"
+                    className="bg-sn-green text-sn-dark font-bold"
+                    onClick={(e: any) => handleCreateTicket(e)}
+                    disabled={isSubmitting || suggestedSolution !== null || isFeatureDisabled("button.submit")}
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit"}
+                  </Button>
+                )}
               </div>
             </div>
 
             <form onSubmit={handleCreateTicket} className="p-6 overflow-y-auto max-h-[85vh]">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
                 {/* Left Column */}
+                {isFeatureVisible("section.leftColumn") && (
                 <div className="space-y-4">
                   {/* Number */}
+                  {isFeatureVisible("field.number") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Number</label>
                     <input disabled className="col-span-2 p-1.5 bg-muted/30 border border-border rounded text-xs font-mono h-8"
                       value={previewNumber}
                     />
                   </div>
+                  )}
 
                   {/* Reporting User */}
+                  {isFeatureVisible("field.caller") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium uppercase leading-tight flex items-center justify-end gap-1">
                       <span className="text-red-500">*</span> Reporting User
@@ -675,7 +713,7 @@ export function Tickets() {
                     <div className="col-span-2 relative">
                       <div className="flex gap-1">
                         <input
-                          required
+                          required={getFieldRequired("field.caller", true)}
                           placeholder="Search for caller..."
                           value={callerSearch || newTicket.caller}
                           onChange={e => {
@@ -684,11 +722,24 @@ export function Tickets() {
                             setNewTicket({ ...newTicket, caller: e.target.value });
                           }}
                           onFocus={() => setShowCallerResults(true)}
-                          className="flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8"
+                          className={getInputClassName("field.caller", "flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8")}
+                          disabled={isFeatureDisabled("field.caller")}
+                          readOnly={isFeatureReadOnly("field.caller")}
                         />
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setShowCallerResults(!showCallerResults)}><Search className="w-3 h-3" /></Button>
+                        {isFeatureVisible("button.searchCaller") && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setShowCallerResults(!showCallerResults)}
+                            disabled={isFeatureDisabled("button.searchCaller")}
+                          >
+                            <Search className="w-3 h-3" />
+                          </Button>
+                        )}
                       </div>
-                      {showCallerResults && callerSearch && (
+                      {showCallerResults && callerSearch && !isFeatureDisabled("button.searchCaller") && (
                         <div className="absolute z-50 w-full mt-1 bg-white border border-border rounded-md shadow-lg max-h-40 overflow-y-auto custom-scrollbar">
                           {allUsers.filter(u =>
                             u.name?.toLowerCase().includes(callerSearch.toLowerCase()) ||
@@ -711,8 +762,10 @@ export function Tickets() {
                       )}
                     </div>
                   </div>
+                  )}
 
                   {/* Affected User */}
+                  {isFeatureVisible("field.affectedUser") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium uppercase leading-tight flex items-center justify-end gap-1">
                       <span className="text-red-500">*</span> Affected User
@@ -720,7 +773,7 @@ export function Tickets() {
                     <div className="col-span-2 relative">
                       <div className="flex gap-1">
                         <input
-                          required
+                          required={getFieldRequired("field.affectedUser")}
                           placeholder="Search affected user..."
                           value={affectedSearch || newTicket.affectedUser || ''}
                           onChange={e => {
@@ -729,11 +782,24 @@ export function Tickets() {
                             setNewTicket({ ...newTicket, affectedUser: e.target.value });
                           }}
                           onFocus={() => setShowAffectedResults(true)}
-                          className="flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8"
+                          className={getInputClassName("field.affectedUser", "flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8")}
+                          disabled={isFeatureDisabled("field.affectedUser")}
+                          readOnly={isFeatureReadOnly("field.affectedUser")}
                         />
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setShowAffectedResults(!showAffectedResults)}><Search className="w-3 h-3" /></Button>
+                        {isFeatureVisible("button.searchAffectedUser") && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setShowAffectedResults(!showAffectedResults)}
+                            disabled={isFeatureDisabled("button.searchAffectedUser")}
+                          >
+                            <Search className="w-3 h-3" />
+                          </Button>
+                        )}
                       </div>
-                      {showAffectedResults && affectedSearch && (
+                      {showAffectedResults && affectedSearch && !isFeatureDisabled("button.searchAffectedUser") && (
                         <div className="absolute z-50 w-full mt-1 bg-white border border-border rounded-md shadow-lg max-h-40 overflow-y-auto custom-scrollbar">
                           {allUsers.filter(u =>
                             u.name?.toLowerCase().includes(affectedSearch.toLowerCase()) ||
@@ -756,8 +822,10 @@ export function Tickets() {
                       )}
                     </div>
                   </div>
+                  )}
 
                   {/* Watch list (CC) */}
+                  {isFeatureVisible("field.watchList") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Watch list</label>
                     <div className="col-span-2 flex gap-1">
@@ -765,42 +833,62 @@ export function Tickets() {
                         value={newTicket.watchList}
                         onChange={e => setNewTicket({ ...newTicket, watchList: e.target.value })}
                         placeholder="Separate emails with commas"
-                        className="flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8"
+                        className={getInputClassName("field.watchList", "flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8")}
+                        disabled={isFeatureDisabled("field.watchList")}
+                        readOnly={isFeatureReadOnly("field.watchList")}
                       />
-                      <Button variant="outline" size="sm" className="h-8 w-8 p-0"><Users className="w-3 h-3" /></Button>
+                      {isFeatureVisible("button.watchListLookup") && (
+                        <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" disabled={isFeatureDisabled("button.watchListLookup")}><Users className="w-3 h-3" /></Button>
+                      )}
                     </div>
                   </div>
+                  )}
 
                   {/* Business Phone */}
+                  {isFeatureVisible("field.businessPhone") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Business phone</label>
                     <input
                       value={newTicket.businessPhone}
                       onChange={e => setNewTicket({ ...newTicket, businessPhone: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                      className={getInputClassName("field.businessPhone", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                      required={getFieldRequired("field.businessPhone")}
+                      disabled={isFeatureDisabled("field.businessPhone")}
+                      readOnly={isFeatureReadOnly("field.businessPhone")}
                     />
                   </div>
+                  )}
 
                   {/* Location */}
+                  {isFeatureVisible("field.location") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Location</label>
                     <div className="col-span-2 flex gap-1">
                       <input
                         value={newTicket.location}
                         onChange={e => setNewTicket({ ...newTicket, location: e.target.value })}
-                        className="flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                        className={getInputClassName("field.location", "flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                        required={getFieldRequired("field.location")}
+                        disabled={isFeatureDisabled("field.location")}
+                        readOnly={isFeatureReadOnly("field.location")}
                       />
-                      <Button variant="outline" size="sm" className="h-8 w-8 p-0"><Search className="w-3 h-3" /></Button>
+                      {isFeatureVisible("button.locationLookup") && (
+                        <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" disabled={isFeatureDisabled("button.locationLookup")}><Search className="w-3 h-3" /></Button>
+                      )}
                     </div>
                   </div>
+                  )}
 
                   {/* Company */}
+                  {isFeatureVisible("field.company") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Company</label>
                     <select
                       value={newTicket.company}
                       onChange={e => setNewTicket({ ...newTicket, company: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8"
+                      className={getInputClassName("field.company", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8")}
+                      required={getFieldRequired("field.company")}
+                      disabled={isFeatureDisabled("field.company")}
                     >
                       <option value="">-- None --</option>
                       {companies.map(c => (
@@ -808,14 +896,16 @@ export function Tickets() {
                       ))}
                     </select>
                   </div>
+                  )}
 
                   {/* Category */}
+                  {isFeatureVisible("field.category") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">
                       <span className="text-red-500 font-bold">*</span> Category
                     </label>
                     <select
-                      required
+                      required={getFieldRequired("field.category", true)}
                       value={newTicket.category}
                       onChange={e => {
                         setNewTicket({ 
@@ -825,7 +915,8 @@ export function Tickets() {
                           service: "" 
                         });
                       }}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white"
+                      className={getInputClassName("field.category", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white")}
+                      disabled={isFeatureDisabled("field.category")}
                     >
                       <option value="">-- Select Category --</option>
                       {IT_SERVICE_CATALOG.map((item) => (
@@ -833,14 +924,16 @@ export function Tickets() {
                       ))}
                     </select>
                   </div>
+                  )}
 
                   {/* Subcategory */}
+                  {isFeatureVisible("field.subcategory") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">
                       <span className="text-red-500 font-bold">*</span> Subcategory
                     </label>
                     <select
-                      required
+                      required={getFieldRequired("field.subcategory", true)}
                       value={newTicket.subcategory}
                       onChange={e => {
                         setNewTicket({ 
@@ -849,8 +942,8 @@ export function Tickets() {
                           service: "" 
                         });
                       }}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white disabled:opacity-50 disabled:bg-muted"
-                      disabled={!newTicket.category}
+                      className={getInputClassName("field.subcategory", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white disabled:opacity-50 disabled:bg-muted")}
+                      disabled={!newTicket.category || isFeatureDisabled("field.subcategory")}
                     >
                       <option value="">-- Select Subcategory --</option>
                       {realisticSubcategories.map(s => (
@@ -858,20 +951,22 @@ export function Tickets() {
                       ))}
                     </select>
                   </div>
+                  )}
 
                   {/* Service */}
+                  {isFeatureVisible("field.service") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">
                       <span className="text-red-500 font-bold">*</span> Service
                     </label>
                     <select
-                      required
+                      required={getFieldRequired("field.service", true)}
                       value={newTicket.service}
                       onChange={e => {
                         setNewTicket({ ...newTicket, service: e.target.value });
                       }}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white disabled:opacity-50 disabled:bg-muted"
-                      disabled={!newTicket.subcategory}
+                      className={getInputClassName("field.service", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white disabled:opacity-50 disabled:bg-muted")}
+                      disabled={!newTicket.subcategory || isFeatureDisabled("field.service")}
                     >
                       <option value="">-- Select Service --</option>
                       {realisticServices.map(s => (
@@ -879,72 +974,101 @@ export function Tickets() {
                       ))}
                     </select>
                   </div>
+                  )}
 
                   {/* Service Offering */}
+                  {isFeatureVisible("field.serviceOffering") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Service Offering</label>
                     <input
                       value={newTicket.serviceOffering}
                       onChange={e => setNewTicket({ ...newTicket, serviceOffering: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                      className={getInputClassName("field.serviceOffering", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                      required={getFieldRequired("field.serviceOffering")}
+                      disabled={isFeatureDisabled("field.serviceOffering")}
+                      readOnly={isFeatureReadOnly("field.serviceOffering")}
                     />
                   </div>
+                  )}
 
                   {/* Configuration Item */}
+                  {isFeatureVisible("field.configurationItem") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Configuration item</label>
                     <div className="col-span-2 flex gap-1">
                       <input
                         value={newTicket.configurationItem}
                         onChange={e => setNewTicket({ ...newTicket, configurationItem: e.target.value })}
-                        className="flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                        className={getInputClassName("field.configurationItem", "flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                        required={getFieldRequired("field.configurationItem")}
+                        disabled={isFeatureDisabled("field.configurationItem")}
+                        readOnly={isFeatureReadOnly("field.configurationItem")}
                       />
-                      <Button variant="outline" size="sm" className="h-8 w-8 p-0"><Search className="w-3 h-3" /></Button>
+                      {isFeatureVisible("button.configurationItemLookup") && (
+                        <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" disabled={isFeatureDisabled("button.configurationItemLookup")}><Search className="w-3 h-3" /></Button>
+                      )}
                     </div>
                   </div>
+                  )}
 
                   {/* Computer Name */}
+                  {isFeatureVisible("field.computerName") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Computer Name</label>
                     <div className="col-span-2 flex gap-1">
                       <input
                         value={newTicket.computerName}
                         onChange={e => setNewTicket({ ...newTicket, computerName: e.target.value })}
-                        className="flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                        className={getInputClassName("field.computerName", "flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                        required={getFieldRequired("field.computerName")}
+                        disabled={isFeatureDisabled("field.computerName")}
+                        readOnly={isFeatureReadOnly("field.computerName")}
                       />
-                      <Button variant="outline" size="sm" className="h-8 w-8 p-0"><Search className="w-3 h-3" /></Button>
+                      {isFeatureVisible("button.computerNameLookup") && (
+                        <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" disabled={isFeatureDisabled("button.computerNameLookup")}><Search className="w-3 h-3" /></Button>
+                      )}
                     </div>
                   </div>
+                  )}
 
                   {/* Impact */}
+                  {isFeatureVisible("field.impact") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Impact</label>
                     <select
                       value={newTicket.impact}
                       onChange={e => setNewTicket({ ...newTicket, impact: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8 transition-colors"
+                      className={getInputClassName("field.impact", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8 transition-colors")}
+                      required={getFieldRequired("field.impact")}
+                      disabled={isFeatureDisabled("field.impact")}
                     >
                       <option>1 - High</option>
                       <option>2 - Medium</option>
                       <option>3 - Low</option>
                     </select>
                   </div>
+                  )}
 
                   {/* Urgency */}
+                  {isFeatureVisible("field.urgency") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Urgency</label>
                     <select
                       value={newTicket.urgency}
                       onChange={e => setNewTicket({ ...newTicket, urgency: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8 transition-colors"
+                      className={getInputClassName("field.urgency", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8 transition-colors")}
+                      required={getFieldRequired("field.urgency")}
+                      disabled={isFeatureDisabled("field.urgency")}
                     >
                       <option>1 - High</option>
                       <option>2 - Medium</option>
                       <option>3 - Low</option>
                     </select>
                   </div>
+                  )}
 
                   {/* Priority */}
+                  {isFeatureVisible("field.priority") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Priority</label>
                     <input
@@ -953,8 +1077,10 @@ export function Tickets() {
                       value={calculatePriority(newTicket.impact, newTicket.urgency)}
                     />
                   </div>
+                  )}
 
                   {/* Knowledge Article Used */}
+                  {isFeatureVisible("field.knowledgeArticleUsed") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Knowledge Article Used?</label>
                     <input
@@ -962,29 +1088,38 @@ export function Tickets() {
                       checked={newTicket.knowledgeArticleUsed}
                       onChange={e => setNewTicket({ ...newTicket, knowledgeArticleUsed: e.target.checked })}
                       className="w-4 h-4 accent-sn-green"
+                      disabled={isFeatureDisabled("field.knowledgeArticleUsed")}
                     />
                   </div>
+                  )}
                 </div>
+                )}
 
                 {/* Right Column */}
+                {isFeatureVisible("section.rightColumn") && (
                 <div className="space-y-4">
                   {/* Opened */}
+                  {isFeatureVisible("field.opened") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Opened</label>
                     <input disabled className="col-span-2 p-1.5 bg-muted/30 border border-border rounded text-xs h-8"
                       value={new Date().toLocaleString()}
                     />
                   </div>
+                  )}
 
                   {/* Opened by */}
+                  {isFeatureVisible("field.openedBy") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Opened by</label>
                     <input disabled className="col-span-2 p-1.5 bg-muted/30 border border-border rounded text-xs h-8"
                       value={profile?.name || user?.email || ""}
                     />
                   </div>
+                  )}
 
                   {/* State */}
+                  {isFeatureVisible("field.state") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">State</label>
                     <select
@@ -994,8 +1129,10 @@ export function Tickets() {
                       <option>New</option>
                     </select>
                   </div>
+                  )}
 
                   {/* Assignment group */}
+                  {isFeatureVisible("field.assignmentGroup") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Assignment group</label>
                     <div className="col-span-2 flex gap-1">
@@ -1005,7 +1142,9 @@ export function Tickets() {
                           const group = visibleGroups.find(g => g.name === e.target.value);
                           setNewTicket({ ...newTicket, assignmentGroup: e.target.value, selectedGroupId: group?.id || "", assignedTo: "" });
                         }}
-                        className="flex-grow p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8"
+                        className={getInputClassName("field.assignmentGroup", "flex-grow p-1.5 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green h-8")}
+                        required={getFieldRequired("field.assignmentGroup")}
+                        disabled={isFeatureDisabled("field.assignmentGroup")}
                       >
                         <option value="">-- Auto Assign --</option>
                         {displayGroups.map((item) => (
@@ -1014,37 +1153,49 @@ export function Tickets() {
                           </option>
                         ))}
                       </select>
-                      <Button variant="outline" size="sm" className="h-8 w-8 p-0"><Search className="w-3 h-3" /></Button>
+                      {isFeatureVisible("button.assignmentGroupLookup") && (
+                        <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" disabled={isFeatureDisabled("button.assignmentGroupLookup")}><Search className="w-3 h-3" /></Button>
+                      )}
                     </div>
                   </div>
+                  )}
 
                   {/* Assigned to */}
+                  {isFeatureVisible("field.assignedTo") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Assigned to</label>
                     <div className="col-span-2 flex gap-1">
                       <select
                         value={newTicket.assignedTo}
                         onChange={e => setNewTicket({ ...newTicket, assignedTo: e.target.value })}
-                        className="flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                        className={getInputClassName("field.assignedTo", "flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                        required={getFieldRequired("field.assignedTo")}
+                        disabled={isFeatureDisabled("field.assignedTo")}
                       >
                         <option value="">-- Select Member --</option>
                         {visibleMembers.map(m => (
                           <option key={m.id} value={m.id}>{m.name || m.userName}</option>
                         ))}
                       </select>
-                      <Button variant="outline" size="sm" className="h-8 w-8 p-0"><Search className="w-3 h-3" /></Button>
+                      {isFeatureVisible("button.assignedToLookup") && (
+                        <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" disabled={isFeatureDisabled("button.assignedToLookup")}><Search className="w-3 h-3" /></Button>
+                      )}
                     </div>
                   </div>
+                  )}
 
                   {/* Original Assignment Group */}
+                  {isFeatureVisible("field.originalAssignmentGroup") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Original Assignment Group</label>
                     <input disabled className="col-span-2 p-1.5 bg-muted/30 border border-border rounded text-xs h-8"
                       value={newTicket.assignmentGroup || ""}
                     />
                   </div>
+                  )}
 
                   {/* Acknowledged */}
+                  {isFeatureVisible("field.acknowledged") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Acknowledged</label>
                     <input
@@ -1052,16 +1203,21 @@ export function Tickets() {
                       checked={newTicket.acknowledged}
                       onChange={e => setNewTicket({ ...newTicket, acknowledged: e.target.checked })}
                       className="w-4 h-4 accent-sn-green"
+                      disabled={isFeatureDisabled("field.acknowledged")}
                     />
                   </div>
+                  )}
 
                   {/* Channel */}
+                  {isFeatureVisible("field.channel") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Channel</label>
                     <select
                       value={newTicket.channel}
                       onChange={e => setNewTicket({ ...newTicket, channel: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                      className={getInputClassName("field.channel", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                      required={getFieldRequired("field.channel")}
+                      disabled={isFeatureDisabled("field.channel")}
                     >
                       <option>Self-service</option>
                       <option>Email</option>
@@ -1070,85 +1226,115 @@ export function Tickets() {
                       <option>Portal</option>
                     </select>
                   </div>
+                  )}
 
                   {/* Password Reset? */}
+                  {isFeatureVisible("field.passwordReset") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Password Reset?</label>
                     <select
                       value={newTicket.passwordReset}
                       onChange={e => setNewTicket({ ...newTicket, passwordReset: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                      className={getInputClassName("field.passwordReset", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                      required={getFieldRequired("field.passwordReset")}
+                      disabled={isFeatureDisabled("field.passwordReset")}
                     >
                       <option>No</option>
                       <option>Yes</option>
                     </select>
                   </div>
+                  )}
 
                   {/* Rackspace Ticket No */}
+                  {isFeatureVisible("field.rackspaceTicketNo") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Rackspace Ticket No</label>
                     <input
                       value={newTicket.rackspaceTicketNo}
                       onChange={e => setNewTicket({ ...newTicket, rackspaceTicketNo: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                      className={getInputClassName("field.rackspaceTicketNo", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                      required={getFieldRequired("field.rackspaceTicketNo")}
+                      disabled={isFeatureDisabled("field.rackspaceTicketNo")}
+                      readOnly={isFeatureReadOnly("field.rackspaceTicketNo")}
                     />
                   </div>
+                  )}
 
                   {/* Additional Information */}
+                  {isFeatureVisible("field.additionalInformation") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">Additional Information</label>
                     <input
                       value={newTicket.additionalInformation}
                       onChange={e => setNewTicket({ ...newTicket, additionalInformation: e.target.value })}
-                      className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                      className={getInputClassName("field.additionalInformation", "col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                      required={getFieldRequired("field.additionalInformation")}
+                      disabled={isFeatureDisabled("field.additionalInformation")}
+                      readOnly={isFeatureReadOnly("field.additionalInformation")}
                     />
                   </div>
+                  )}
 
                   {/* SLA due */}
+                  {isFeatureVisible("field.slaDue") && (
                   <div className="grid grid-cols-3 items-center gap-4">
                     <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">SLA due</label>
                     <input disabled className="col-span-2 p-1.5 bg-muted/30 border border-border rounded text-xs font-mono h-8"
                       value={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleString()}
                     />
                   </div>
+                  )}
                 </div>
+                )}
               </div>
 
               {/* Full Width Fields */}
+              {isFeatureVisible("section.fullWidth") && (
               <div className="mt-8 space-y-4">
                 <div className="grid grid-cols-6 items-center gap-4">
+                  {isFeatureVisible("field.title") && (
+                  <>
                   <label className="text-[11px] text-right font-medium uppercase leading-tight flex items-center justify-end gap-1">
                     <span className="text-red-500">*</span> Short description
                   </label>
                   <div className="col-span-5 flex gap-2">
                     <input
-                      required
+                      required={getFieldRequired("field.title", true)}
                       value={newTicket.title}
                       onChange={e => setNewTicket({ ...newTicket, title: e.target.value })}
-                      className="flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8"
+                      className={getInputClassName("field.title", "flex-grow p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green h-8")}
+                      disabled={isFeatureDisabled("field.title")}
+                      readOnly={isFeatureReadOnly("field.title")}
                     />
-                    <Button
-                      type="button"
-                      onClick={handleAIAssist}
-                      disabled={isAiLoading}
-                      className="bg-purple-600 hover:bg-purple-700 text-white h-8 text-[11px]"
-                    >
-                      {isAiLoading ? "Analyzing..." : "Autofill with AI"}
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={() => speechControllerRef.current?.toggle()}
-                      disabled={!speechSupported}
-                      className={cn(
-                        "p-1.5 hover:bg-muted rounded transition-colors ml-1 border border-border h-8 w-8 flex items-center justify-center",
-                        speechListening && "bg-sn-green/15 text-sn-green border-sn-green"
-                      )}
-                      title={speechListening ? "Stop Dictation" : "Dictation"}
-                    >
-                      <Mic className="w-4 h-4" />
-                    </button>
+                    {isFeatureVisible("button.aiAutofill") && (
+                      <Button
+                        type="button"
+                        onClick={handleAIAssist}
+                        disabled={isAiLoading || isFeatureDisabled("button.aiAutofill")}
+                        className="bg-purple-600 hover:bg-purple-700 text-white h-8 text-[11px]"
+                      >
+                        {isAiLoading ? "Analyzing..." : "Autofill with AI"}
+                      </Button>
+                    )}
+                    {isFeatureVisible("button.dictation") && (
+                      <button
+                        type="button"
+                        onClick={() => speechControllerRef.current?.toggle()}
+                        disabled={!speechSupported || isFeatureDisabled("button.dictation")}
+                        className={cn(
+                          "p-1.5 hover:bg-muted rounded transition-colors ml-1 border border-border h-8 w-8 flex items-center justify-center",
+                          speechListening && "bg-sn-green/15 text-sn-green border-sn-green"
+                        )}
+                        title={speechListening ? "Stop Dictation" : "Dictation"}
+                      >
+                        <Mic className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
+                  </>
+                  )}
                 </div>
+                {isFeatureVisible("field.description") && (
                 <div className="grid grid-cols-6 items-start gap-4">
                   <label className="text-[11px] text-right font-medium uppercase leading-tight mt-1">Description</label>
                   <div className="col-span-5 space-y-1.5">
@@ -1156,8 +1342,14 @@ export function Tickets() {
                       rows={4}
                       value={newTicket.description}
                       onChange={e => setNewTicket({ ...newTicket, description: e.target.value })}
-                      className={`w-full p-1.5 border rounded text-xs focus:ring-1 focus:ring-sn-green resize-none h-32 transition-all ${suggestedSolution ? 'border-purple-400 ring-1 ring-purple-300 bg-purple-50' : 'border-border'}`}
+                      className={cn(
+                        getInputClassName("field.description", "w-full p-1.5 border rounded text-xs focus:ring-1 focus:ring-sn-green resize-none h-32 transition-all"),
+                        suggestedSolution ? 'border-purple-400 ring-1 ring-purple-300 bg-purple-50' : 'border-border'
+                      )}
                       placeholder="Describe the issue in detail... or use Autofill with AI above"
+                      required={getFieldRequired("field.description")}
+                      disabled={isFeatureDisabled("field.description")}
+                      readOnly={isFeatureReadOnly("field.description")}
                     />
                     {speechListening && (
                       <div className="text-[10px] text-sn-green font-medium">
@@ -1166,41 +1358,53 @@ export function Tickets() {
                     )}
                   </div>
                 </div>
+                )}
               </div>
+              )}
 
               {/* Suggested Solution Box */}
-              {suggestedSolution && (
+              {suggestedSolution && isFeatureVisible("section.suggestedSolution") && (
                 <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                   <h4 className="text-purple-800 font-semibold mb-2 flex items-center gap-2">
                     <span>✨</span> AI filled your description
                     <span className="text-[10px] font-normal text-purple-500 ml-auto">You can edit it above</span>
                   </h4>
                   <p className="text-xs text-purple-700 italic line-clamp-3">{suggestedSolution}</p>
-                  <button type="button" onClick={() => setSuggestedSolution(null)}
-                    className="mt-2 text-[10px] text-purple-400 hover:text-purple-600 underline">
-                    Dismiss
-                  </button>
+                  {isFeatureVisible("button.dismissSuggestedSolution") && (
+                    <button type="button" onClick={() => setSuggestedSolution(null)}
+                      disabled={isFeatureDisabled("button.dismissSuggestedSolution")}
+                      className="mt-2 text-[10px] text-purple-400 hover:text-purple-600 underline disabled:opacity-50">
+                      Dismiss
+                    </button>
+                  )}
                 </div>
               )}
 
               {/* Modal Footer */}
-              <div className="flex justify-end gap-3 pt-6 border-t border-border mt-8">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={closeModal}
-                  className="px-6 h-8 text-[11px] font-bold uppercase tracking-wider"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmitting || suggestedSolution !== null}
-                  className="bg-sn-green text-sn-dark hover:bg-sn-green/90 px-8 h-8 text-[11px] font-bold uppercase tracking-wider shadow-sm disabled:opacity-50"
-                >
-                  {isSubmitting ? "Submitting..." : "Submit"}
-                </Button>
-              </div>
+              {isFeatureVisible("section.footer") && (
+                <div className="flex justify-end gap-3 pt-6 border-t border-border mt-8">
+                  {isFeatureVisible("button.cancel") && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={closeModal}
+                      disabled={isFeatureDisabled("button.cancel")}
+                      className="px-6 h-8 text-[11px] font-bold uppercase tracking-wider"
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  {isFeatureVisible("button.submit") && (
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || suggestedSolution !== null || isFeatureDisabled("button.submit")}
+                      className="bg-sn-green text-sn-dark hover:bg-sn-green/90 px-8 h-8 text-[11px] font-bold uppercase tracking-wider shadow-sm disabled:opacity-50"
+                    >
+                      {isSubmitting ? "Submitting..." : "Submit"}
+                    </Button>
+                  )}
+                </div>
+              )}
             </form>
           </div>
         </div>
