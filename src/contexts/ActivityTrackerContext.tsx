@@ -251,12 +251,12 @@ export function ActivityTrackerProvider({ children }: { children: React.ReactNod
                 if (existing) {
                   await fetch(`/api/time-cards/${existing.id}`, {
                     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ hours_worked: (parseFloat(existing.hours_worked) || 0) + mins, description, short_description: shortDesc }),
+                    body: JSON.stringify({ hours_worked: (parseFloat(existing.hours_worked) || 0) + mins, description, short_description: shortDesc, ticket_number: selectedIncidentRef.current || null, is_system_generated: 1 }),
                   });
                 } else {
                   await fetch('/api/time-cards', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ timesheet_id: ts.id, user_id: userId, entry_date: today, task, hours_worked: mins, description, short_description: shortDesc, work_type: 'Remote', billable: 'Billable', status: 'Draft' }),
+                    body: JSON.stringify({ timesheet_id: ts.id, user_id: userId, entry_date: today, task, hours_worked: mins, description, short_description: shortDesc, work_type: 'Remote', billable: 'Billable', status: 'Draft', ticket_number: selectedIncidentRef.current || null, is_system_generated: 1 }),
                   });
                 }
               }

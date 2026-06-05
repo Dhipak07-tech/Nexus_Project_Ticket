@@ -774,9 +774,20 @@ export function Calendar() {
                         style={{ borderLeft: `3px solid ${borderColor}` }}
                       >
                         <div className="flex-grow px-1.5 overflow-hidden">
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 group/tooltip relative">
                             <Clock className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
-                            <span className="text-[10px] font-bold truncate">({card.hours_worked}m) {card.short_description || card.task || card.work_type || "Entry"}</span>
+                            <span className="text-[10px] font-bold truncate">
+                              {card.ticket_number && <span className="text-blue-600 mr-1">{card.ticket_number}</span>}
+                              ({card.hours_worked}m) {card.short_description || card.task || card.work_type || "Entry"}
+                            </span>
+                            
+                            {/* Hover Tooltip */}
+                            <div className="absolute bottom-full left-0 mb-1 hidden group-hover/tooltip:block bg-sn-dark text-white text-[10px] p-2 rounded shadow-lg z-50 whitespace-nowrap min-w-max">
+                              {card.ticket_number && <div className="font-bold text-blue-300">{card.ticket_number}</div>}
+                              <div className="font-medium">{card.short_description || card.task || card.work_type || "Entry"}</div>
+                              <div className="text-gray-300">{card.hours_worked} Minutes Worked</div>
+                              <div className="text-gray-400 mt-1">Logged by: {selectedUserProfile?.name || "Technician"}</div>
+                            </div>
                           </div>
                           {viewDetails === "with_details" && card.description && (
                             <div className="text-[9px] text-muted-foreground truncate mt-0.5">{card.description}</div>
@@ -798,7 +809,10 @@ export function Calendar() {
                     onClick={() => openEditPanel(card)}
                   >
                     <Clock className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
-                    <span className="font-medium truncate">{card.short_description || card.task || card.work_type || "Entry"}</span>
+                    <span className="font-medium truncate">
+                      {card.ticket_number && <span className="text-blue-600 mr-1">{card.ticket_number}</span>}
+                      {card.short_description || card.task || card.work_type || "Entry"}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -814,9 +828,24 @@ export function Calendar() {
           <div className="relative w-full max-w-md bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right">
             {/* Panel Header */}
             <div className="flex items-center justify-between p-4 border-b border-border bg-muted/10">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
-                <h3 className="font-bold text-sm">{editPanel.id ? "Edit Time Entry" : "New Time Entry"}</h3>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-bold text-sm">{editPanel.id ? "Edit Time Entry" : "New Time Entry"}</h3>
+                  {editPanel.is_system_generated === 1 && (
+                    <span className="ml-2 px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full flex items-center gap-1 border border-amber-200">
+                      🔒 System Generated
+                    </span>
+                  )}
+                </div>
+                {editPanel.ticket_number && (
+                  <div className="mt-1 flex items-center gap-1 text-xs">
+                    <span className="text-muted-foreground font-medium">Incident:</span>
+                    <Link to={`/tickets/${editPanel.ticket_number}`} className="font-bold text-blue-600 hover:underline flex items-center gap-0.5">
+                      {editPanel.ticket_number}
+                    </Link>
+                  </div>
+                )}
               </div>
               <button onClick={() => setEditPanel(null)} className="p-1 hover:bg-muted rounded"><X className="w-5 h-5" /></button>
             </div>
@@ -831,34 +860,40 @@ export function Calendar() {
                 <div>
                   <label className="text-xs text-muted-foreground font-medium block mb-1">Start Time</label>
                   <input value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))}
-                    className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green" placeholder="7:00 AM" />
+                    disabled={editPanel.is_system_generated === 1}
+                    className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" placeholder="7:00 AM" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium block mb-1">End Time</label>
                   <input value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))}
-                    className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green" placeholder="5:00 PM" />
+                    disabled={editPanel.is_system_generated === 1}
+                    className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" placeholder="5:00 PM" />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground font-medium block mb-1">Minutes Worked</label>
                 <input type="number" step="5" value={editForm.minutesWorked} onChange={e => setEditForm(f => ({ ...f, minutesWorked: e.target.value }))}
-                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green" />
+                  disabled={editPanel.is_system_generated === 1}
+                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground font-medium block mb-1">Task / Work Type</label>
                 <input value={editForm.task} onChange={e => setEditForm(f => ({ ...f, task: e.target.value }))}
-                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green" />
+                  disabled={editPanel.is_system_generated === 1}
+                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground font-medium block mb-1">Short Description</label>
                 <input value={editForm.shortDescription} onChange={e => setEditForm(f => ({ ...f, shortDescription: e.target.value }))}
+                  disabled={editPanel.is_system_generated === 1}
                   placeholder="Brief description of work done..."
-                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green" />
+                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground font-medium block mb-1">Billable</label>
                 <select value={editForm.billable} onChange={e => setEditForm(f => ({ ...f, billable: e.target.value }))}
-                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green">
+                  disabled={editPanel.is_system_generated === 1}
+                  className="w-full p-1.5 border border-border rounded text-xs h-8 outline-none focus:ring-1 focus:ring-sn-green disabled:bg-muted/50 disabled:opacity-70">
                   <option>Billable</option>
                   <option>Non-Billable</option>
                   <option>Internal</option>
@@ -867,30 +902,41 @@ export function Calendar() {
               <div>
                 <label className="text-xs text-muted-foreground font-medium block mb-1">Description</label>
                 <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
-                  rows={4} className="w-full p-2 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green resize-none" />
+                  disabled={editPanel.is_system_generated === 1}
+                  rows={4} className="w-full p-2 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green resize-none disabled:bg-muted/50 disabled:opacity-70" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground font-medium block mb-1">Notes</label>
                 <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
-                  rows={2} className="w-full p-2 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green resize-none" placeholder="Additional notes..." />
+                  disabled={editPanel.is_system_generated === 1}
+                  rows={2} className="w-full p-2 border border-border rounded text-xs outline-none focus:ring-1 focus:ring-sn-green resize-none disabled:bg-muted/50 disabled:opacity-70" placeholder="Additional notes..." />
               </div>
             </div>
 
             {/* Panel Footer */}
             <div className="p-4 border-t border-border flex items-center justify-between bg-muted/10">
-              <button 
-                onClick={deleteFromPanel} 
-                disabled={!editPanel.id}
-                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-30 disabled:pointer-events-none"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Delete
-              </button>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditPanel(null)} className="px-3 py-1.5 border border-border rounded text-xs hover:bg-muted transition-colors">Cancel</button>
-                <button onClick={saveEditPanel} disabled={editSaving}
-                  className="flex items-center gap-1 bg-sn-green text-sn-dark px-4 py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity">
-                  <Save className="w-3.5 h-3.5" /> {editSaving ? "Saving..." : "Save"}
+              <div className="relative group">
+                <button 
+                  onClick={deleteFromPanel} 
+                  disabled={!editPanel.id || editPanel.is_system_generated === 1}
+                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
                 </button>
+                {editPanel.is_system_generated === 1 && (
+                  <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-sn-dark text-white text-[10px] p-1.5 rounded shadow whitespace-nowrap z-50">
+                    System-generated entries cannot be deleted.
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditPanel(null)} className="px-3 py-1.5 border border-border rounded text-xs hover:bg-muted transition-colors">Close</button>
+                {editPanel.is_system_generated !== 1 && (
+                  <button onClick={saveEditPanel} disabled={editSaving}
+                    className="flex items-center gap-1 bg-sn-green text-sn-dark px-4 py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity">
+                    <Save className="w-3.5 h-3.5" /> {editSaving ? "Saving..." : "Save"}
+                  </button>
+                )}
               </div>
             </div>
           </div>

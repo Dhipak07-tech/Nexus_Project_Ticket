@@ -293,8 +293,15 @@ export function TimesheetWeekly() {
                         ? 'bg-blue-50 border-blue-200'
                         : 'bg-muted/30 border-border'}`}>
                       <div className="font-semibold truncate pr-10 flex items-center gap-1">
-                        {(entry.short_description || '').startsWith('[AI Tracked]') && (
+                        {entry.is_system_generated === 1 ? (
+                          <span title="System Generated Ticket Session">🔒</span>
+                        ) : (entry.short_description || '').startsWith('[AI Tracked]') ? (
                           <span title="Auto-tracked by AI Activity Tracker">🤖</span>
+                        ) : null}
+                        {entry.ticket_number && (
+                          <Link to={`/tickets/${entry.ticket_number}`} className="text-blue-600 hover:underline mr-1" onClick={e => e.stopPropagation()}>
+                            {entry.ticket_number}
+                          </Link>
                         )}
                         {entry.task}
                       </div>
@@ -304,12 +311,20 @@ export function TimesheetWeekly() {
                       )}
                       {canEdit && (
                         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 flex gap-0.5">
-                          <button onClick={() => openEdit(entry)} className="p-1 hover:bg-white rounded" title="Edit">
-                            <Pencil className="w-3 h-3" />
-                          </button>
-                          <button onClick={() => deleteEntry(entry.id)} className="p-1 hover:bg-red-100 text-red-500 rounded" title="Delete">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          {entry.is_system_generated === 1 ? (
+                            <button className="p-1 opacity-30 cursor-not-allowed text-red-500 rounded" title="Cannot edit or delete system generated entry">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={(e) => { e.stopPropagation(); openEdit(entry); }} className="p-1 hover:bg-white rounded" title="Edit">
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); deleteEntry(entry.id); }} className="p-1 hover:bg-red-100 text-red-500 rounded" title="Delete">
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
