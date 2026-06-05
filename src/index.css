@@ -82,25 +82,43 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%; /* Premium Deep Slate Navy */
+    --background: 220 50% 8%; /* Premium Deep Slate Navy (#0B1220) */
     --foreground: 210 40% 98%; /* High contrast crisp white-slate */
-    --card: 222.2 84% 8.5%; /* Deep Slate Navy Card */
+    --card: 220 40% 11%; /* Card background (#111827) */
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 8.5%;
+    --popover: 220 40% 11%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%; /* Bright Corporate Blue */
     --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 12%;
+    --secondary: 220 30% 18%; /* Panel background (#1A2332) */
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 12%;
+    --muted: 220 30% 18%;
     --muted-foreground: 215 20.2% 65.1%;
     --accent: 199 89% 48%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 220 30% 25%; /* Border (#2D3B55) */
+    --input: 220 30% 25%;
     --ring: 217.2 91.2% 59.8%;
+
+    /* Light color overrides inside dark mode to prevent white patches */
+    --color-white: #111827;
+    --color-slate-50: #1A2332;
+    --color-slate-100: #1A2332;
+    --color-slate-200: #2D3B55;
+    --color-slate-300: #2D3B55;
+    --color-slate-400: #94A3B8;
+    --color-gray-50: #1A2332;
+    --color-gray-100: #1A2332;
+    --color-gray-200: #2D3B55;
+    --color-gray-300: #2D3B55;
+    --color-gray-400: #94A3B8;
+    --color-zinc-50: #1A2332;
+    --color-zinc-100: #1A2332;
+    --color-zinc-200: #2D3B55;
+    --color-zinc-300: #2D3B55;
+    --color-zinc-400: #94A3B8;
   }
 }
 
@@ -117,7 +135,7 @@
   }
 
   .dark body {
-    background: linear-gradient(-45deg, #020617, #070e27, #0c153a, #020617);
+    background: linear-gradient(-45deg, #0b1220, #0f172a, #111827, #0b1220);
     background-size: 400% 400%;
     animation: gradientAnimation 20s ease infinite;
   }
@@ -728,5 +746,61 @@ html:not(.dark) .dark textarea {
 .dark .activity-tracker-container select option,
 .dark .activity-tracker-modal select option {
   background-color: #111827 !important;
+  color: #FFFFFF !important;
+}
+
+/* --- Global Dark Mode Overrides to Prevent White/Light-Gray Patches --- */
+.dark .bg-white,
+.dark [class*="bg-white/"] {
+  background-color: #111827 !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-100,
+.dark .bg-slate-200,
+.dark .bg-slate-300,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-gray-200,
+.dark .bg-gray-300,
+.dark .bg-zinc-50,
+.dark .bg-zinc-100,
+.dark .bg-zinc-200,
+.dark .bg-zinc-300 {
+  background-color: #1A2332 !important;
+}
+
+.dark .border,
+.dark .border-t,
+.dark .border-b,
+.dark .border-l,
+.dark .border-r,
+.dark .border-border,
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #2D3B55 !important;
+}
+
+/* Ensure no bright borders or white patches for buttons that are outline/solid white */
+.dark button.bg-white,
+.dark a.bg-white {
+  background-color: #111827 !important;
+  border-color: #2D3B55 !important;
+  color: #FFFFFF !important;
+}
+
+.dark button.bg-white:hover,
+.dark a.bg-white:hover {
+  background-color: #1A2332 !important;
+}
+
+/* Recharts Tooltip styling override */
+.dark .recharts-default-tooltip {
+  background-color: #1A2332 !important;
+  border: 1px solid #2D3B55 !important;
   color: #FFFFFF !important;
 }
