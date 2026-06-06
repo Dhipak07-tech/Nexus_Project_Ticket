@@ -423,14 +423,6 @@ export function Tickets() {
 
     const hasCategoryAccess = ["admin", "super_admin", "ultra_super_admin"].includes(profile?.role || "") ||
       ["arun@technosprint.net", "ulter@technosprint.net", "admin@technosprint.net", "admin@connectit.local", "demo-admin@connectit.local", "demo-super_admin@connectit.local", "demo-ultra_super_admin@connectit.local"].includes(user?.email || profile?.email || "");
-    if (hasCategoryAccess && dynamicFields.length > 0) {
-      for (const field of dynamicFields) {
-        if (!newTicket.customFields?.[field.id]) {
-          alert(`Please select a value for: ${field.name}`);
-          return;
-        }
-      }
-    }
 
     // Only validate truly required fields: caller and title are always required.
     // category, subcategory, service are required only when their feature is visible.
@@ -1277,54 +1269,6 @@ export function Tickets() {
                       </div>
                     )}
 
-                    {/* Incident Category Dynamic Custom Dropdowns */}
-                    {(["admin", "super_admin", "ultra_super_admin"].includes(profile?.role || "") ||
-                      ["arun@technosprint.net", "ulter@technosprint.net", "admin@technosprint.net", "admin@connectit.local", "demo-admin@connectit.local", "demo-super_admin@connectit.local", "demo-ultra_super_admin@connectit.local"].includes(user?.email || profile?.email || "")) && (
-                        <>
-                          {dynamicFields.map((field) => {
-                            const fieldOptions = dynamicOptions[field.id] || [];
-                            return (
-                              <div key={field.id} className="grid grid-cols-3 items-center gap-4">
-                                <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">
-                                  <span className="text-red-500 font-bold">*</span> {field.name}
-                                </label>
-                                <select
-                                  value={newTicket.customFields?.[field.id] || ""}
-                                  onChange={e => {
-                                    setNewTicket((prev: any) => ({
-                                      ...prev,
-                                      customFields: {
-                                        ...(prev.customFields || {}),
-                                        [field.id]: e.target.value
-                                      }
-                                    }));
-                                  }}
-                                  className="col-span-2 p-1.5 border border-border rounded text-xs focus:ring-1 focus:ring-sn-green outline-none h-8 bg-white"
-                                  required
-                                >
-                                  <option value="">Select {field.name}</option>
-                                  {fieldOptions.map((opt: any) => (
-                                    <option key={opt.id} value={opt.value_text}>{opt.value_text}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            );
-                          })}
-                          {dynamicFields.length === 0 && (
-                            <div className="grid grid-cols-3 items-center gap-4">
-                              <label className="text-[11px] text-right font-medium text-muted-foreground uppercase leading-tight">
-                                Incident Category
-                              </label>
-                              <select
-                                disabled
-                                className="col-span-2 p-1.5 border border-border rounded text-xs outline-none h-8 bg-muted/20"
-                              >
-                                <option>No dynamic custom categories defined</option>
-                              </select>
-                            </div>
-                          )}
-                        </>
-                      )}
 
                     {/* Subcategory */}
                     {isFeatureVisible("field.subcategory") && (
